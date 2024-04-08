@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <mpi.h>
 #include <stdint.h>
 #include <getopt.h>
 #include "shared.h"

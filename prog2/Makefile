@@ -2,4 +2,4 @@
 
 compile:
 	@echo "Compiling..."
-	gcc -Wall -O3 -o prog2 multiBitonic.c
+	mpicc -Wall -O3 -o prog2 multiBitonic.c
