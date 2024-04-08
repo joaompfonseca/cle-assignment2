@@ -1,0 +1,48 @@
+File: datSeq32.bin; Threads: 1
+[TIME] Time elapsed: 0.000144010 seconds
+
+File: datSeq32.bin; Threads: 2
+[TIME] Time elapsed: 0.000443466 seconds
+
+File: datSeq32.bin; Threads: 4
+[TIME] Time elapsed: 0.001109793 seconds
+
+File: datSeq32.bin; Threads: 8
+[TIME] Time elapsed: 0.001391197 seconds
+
+File: datSeq256K.bin; Threads: 1
+[TIME] Time elapsed: 0.079225623 seconds
+
+File: datSeq256K.bin; Threads: 2
+[TIME] Time elapsed: 0.063117669 seconds
+
+File: datSeq256K.bin; Threads: 4
+[TIME] Time elapsed: 0.035385678 seconds
+
+File: datSeq256K.bin; Threads: 8
+[TIME] Time elapsed: 0.033687834 seconds
+
+File: datSeq1M.bin; Threads: 1
+[TIME] Time elapsed: 0.334630909 seconds
+
+File: datSeq1M.bin; Threads: 2
+[TIME] Time elapsed: 0.221614018 seconds
+
+File: datSeq1M.bin; Threads: 4
+[TIME] Time elapsed: 0.136802968 seconds
+
+File: datSeq1M.bin; Threads: 8
+[TIME] Time elapsed: 0.121676873 seconds
+
+File: datSeq16M.bin; Threads: 1
+[TIME] Time elapsed: 7.058241884 seconds
+
+File: datSeq16M.bin; Threads: 2
+[TIME] Time elapsed: 3.889325836 seconds
+
+File: datSeq16M.bin; Threads: 4
+[TIME] Time elapsed: 2.491314707 seconds
+
+File: datSeq16M.bin; Threads: 8
+[TIME] Time elapsed: 1.998820268 seconds
+

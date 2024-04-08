@@ -1,0 +1,102 @@
+Number of files: 5
+Number of workers: 1
+
+File name: data/text0.txt
+Total number of words: 17
+Total number of words with at least two instances of the same consonant: 2
+
+File name: data/text1.txt
+Total number of words: 1184
+Total number of words with at least two instances of the same consonant: 207
+
+File name: data/text2.txt
+Total number of words: 11027
+Total number of words with at least two instances of the same consonant: 1999
+
+File name: data/text3.txt
+Total number of words: 3369
+Total number of words with at least two instances of the same consonant: 508
+
+File name: data/text4.txt
+Total number of words: 9914
+Total number of words with at least two instances of the same consonant: 1322
+
+Elapsed time: 0.005036
+
+
+Number of files: 5
+Number of workers: 2
+
+File name: data/text0.txt
+Total number of words: 17
+Total number of words with at least two instances of the same consonant: 2
+
+File name: data/text1.txt
+Total number of words: 1184
+Total number of words with at least two instances of the same consonant: 207
+
+File name: data/text2.txt
+Total number of words: 11027
+Total number of words with at least two instances of the same consonant: 1999
+
+File name: data/text3.txt
+Total number of words: 3369
+Total number of words with at least two instances of the same consonant: 508
+
+File name: data/text4.txt
+Total number of words: 9914
+Total number of words with at least two instances of the same consonant: 1322
+
+Elapsed time: 0.002341
+
+
+Number of files: 5
+Number of workers: 4
+
+File name: data/text0.txt
+Total number of words: 17
+Total number of words with at least two instances of the same consonant: 2
+
+File name: data/text1.txt
+Total number of words: 1184
+Total number of words with at least two instances of the same consonant: 207
+
+File name: data/text2.txt
+Total number of words: 11027
+Total number of words with at least two instances of the same consonant: 1999
+
+File name: data/text3.txt
+Total number of words: 3369
+Total number of words with at least two instances of the same consonant: 508
+
+File name: data/text4.txt
+Total number of words: 9914
+Total number of words with at least two instances of the same consonant: 1322
+
+Elapsed time: 0.001141
+
+
+Number of files: 5
+Number of workers: 8
+
+File name: data/text0.txt
+Total number of words: 17
+Total number of words with at least two instances of the same consonant: 2
+
+File name: data/text1.txt
+Total number of words: 1184
+Total number of words with at least two instances of the same consonant: 207
+
+File name: data/text2.txt
+Total number of words: 11027
+Total number of words with at least two instances of the same consonant: 1999
+
+File name: data/text3.txt
+Total number of words: 3369
+Total number of words with at least two instances of the same consonant: 508
+
+File name: data/text4.txt
+Total number of words: 9914
+Total number of words with at least two instances of the same consonant: 1322
+
+Elapsed time: 0.001084
