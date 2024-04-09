@@ -15,8 +15,8 @@
 #include <mpi.h>
 #include <stdint.h>
 #include <getopt.h>
-#include "shared.h"
 #include "wordUtils.h"
+#include "fileDataHandler.h"
 
 #define N_WORKERS 2 // default number of workers
 #define CLOCK_MONOTONIC 1 // for clock_gettime
@@ -39,7 +39,6 @@ static double get_delta_time(void) {
     return (double) (t1.tv_sec - t0.tv_sec) + 1.0e-9 * (double) (t1.tv_nsec - t0.tv_nsec);
 }
 
-
 /**
  *  \brief Worker thread function that executes tasks.
  *
@@ -50,44 +49,116 @@ static double get_delta_time(void) {
  * 
  * \param id pointer to the worker id
  */
-void *worker(void *id) {
-    uint8_t workerId = *((uint8_t *)id);
-
-    struct ChunkData chunkData;
-    int ptr;
-    char *currentChar = (char *) malloc(MAX_CHAR_LENGTH * sizeof(char));
-    int consOcc[26];
-    bool detMultCons;
+void distributeChunks(int nProcesses) {
+    chunk_data chunkData;
+    int nWords, nWordsWMultCons, fileIndex;
+    bool finished;
+    int nextWorker = 0; // first nextWorker is 1 (0 is the main thread)
 
     while (true) {
+        if (nextWorker == nProcesses - 1) {
+            nextWorker = 1;
+            
+            // receive results from workers
+            for (int i = 1; i < nProcesses; i++) {
+                MPI_Recv(&nWords, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&nWordsWMultCons, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&fileIndex, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+                // update final results
+                saveResults(nWords, nWordsWMultCons, fileIndex);
+            }
+
+        } else {
+            nextWorker++;
+        }
+
         chunkData.nWords = 0;
         chunkData.nWordsWMultCons = 0;
         chunkData.finished = true;
         chunkData.inWord = false;
 
-        retrieveData(workerId, &chunkData);
+        retrieveData(&chunkData);
+        finished = chunkData.finished;
 
-        if (chunkData.finished) {
+        if (finished) {
             break;
         }
+
+        // signal worker to start receiving the rest of the object
+        // printf("Main: waking up worker %d\n", nextWorker);
+        MPI_Send(&finished, 1, MPI_INT, nextWorker, 0, MPI_COMM_WORLD);
+
+        // printf("Main: sending chunk to worker %d\n", nextWorker);
+        MPI_Send(&chunkData.chunkSize, 1, MPI_INT, nextWorker, 0, MPI_COMM_WORLD);
+        MPI_Send(&chunkData.fileIndex, 1, MPI_INT, nextWorker, 0, MPI_COMM_WORLD);
+        MPI_Send(chunkData.chunk, chunkData.chunkSize, MPI_CHAR, nextWorker, 0, MPI_COMM_WORLD);
+
+        memset(chunkData.chunk, 0, MAX_CHUNK_SIZE);
+    }
+
+    // signal workers to stop receiving
+    for (int i = 1; i < nProcesses; i++) {
+        // printf("Main: sending signal to stop to worker %d\n", i);
+        MPI_Send(&finished, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+    }
+}
+
+
+void workerRoutine(int rank) {
+    // chunk_data chunkMetaData;
+    int nWords, nWordsWMultCons, fileIndex, chunkSize;
+    char* chunk;
+    int ptr;
+    char *currentChar = (char *) malloc(MAX_CHAR_LENGTH * sizeof(char));
+
+    int consOcc[26];
+    bool detMultCons, finished, inWord;
+
+    while (true) {
+        MPI_Recv(&finished, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        // printf("Worker %d: received signal to start\n", rank);
+
+        if (finished) {
+            // printf("Worker %d: received signal to stop\n", rank);
+            break;
+        }
+
+        // MPI_Recv(&chunkMetaData, sizeof(chunkMetaData), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        // printf("Worker %d: received chunk metada\n", rank);
+
+        // MPI_Recv(chunk, chunkMetaData.chunkSize, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        // printf("Worker %d: received chunk\n", rank);
+
+        MPI_Recv(&chunkSize, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&fileIndex, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        chunk = (char *) malloc((chunkSize + 1) * sizeof(char));
+        MPI_Recv(chunk, chunkSize, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        nWords = 0;
+        nWordsWMultCons = 0;
+        inWord = false;
 
         ptr = 0;
         detMultCons = false;
         memset(consOcc, 0, 26 * sizeof(int));
 
-        char* word = (char *) malloc(MAX_CHAR_LENGTH * sizeof(char));
+        // printf("Worker %d: processing chunk\n", rank);
 
-        while (extractCharFromChunk(chunkData.chunk, currentChar, &ptr) != -1) {
-            processChar(word, currentChar, &chunkData.inWord, &chunkData.nWords, &chunkData.nWordsWMultCons, consOcc, &detMultCons);
+        chunk[chunkSize] = '\0';
+
+        while (extractCharFromChunk(chunk, currentChar, &ptr) != -1) {
+            processChar(currentChar, &inWord, &nWords, &nWordsWMultCons, consOcc, &detMultCons);
         }
 
-        // update shared data
-        saveResults(&chunkData);
-
-        memset(chunkData.chunk, 0, MAX_CHUNK_SIZE);
+        // send back partial results
+        // printf("Worker %d: sending partial results\n", rank);
+        MPI_Send(&nWords, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(&nWordsWMultCons, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(&fileIndex, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
     }
-
-    return (void*) EXIT_SUCCESS;
+    
 }
 
 /**
@@ -107,65 +178,70 @@ void *worker(void *id) {
 int main(int argc, char *argv[]) {
     // program arguments
     char *cmd_name = argv[0];
-    int nThreads = N_WORKERS;
-    int nFiles;
+    int nFiles, rank, size, nProcesses = N_WORKERS;
     char **fileNames;
 
-    // process command line options
-    int opt;
-    do {
-        opt = getopt(argc, argv, "n:");
-        switch (opt) {
-            case 'n':
-                nThreads = atoi(optarg);
-                if (nThreads < 1) {
-                    fprintf(stderr, "[MAIN] Invalid number of worker threads\n");
-                    fprintf(stderr, "Usage: %s [-n n_workers] file1.txt file2.txt ...\n", cmd_name);
-                    return EXIT_FAILURE;
-                }
-                break;
-            case -1:
-                if (optind < argc) {
-                    // process remaining arguments
-                    nFiles = argc - optind;
-                    printf("Number of files: %d\n", nFiles);
-                    fileNames = (char **)malloc((nFiles + 1) * sizeof(char *));
-                    for (int i = optind; i < argc; i++) {
-                        fileNames[i - optind] = argv[i];
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (size < 2) {
+        fprintf(stderr, "Error: This program requires at least 2 processes\n");
+        MPI_Finalize();
+        return EXIT_FAILURE;
+    }
+
+    initializeCharMeaning(); // initialize the charMeaning array in all processes
+
+    if (rank == 0) {
+        // process command line options
+        int opt;
+        do {
+            opt = getopt(argc, argv, "n:");
+            switch (opt) {
+                case 'n':
+                    nProcesses = atoi(optarg);
+                    if (nProcesses < 1) {
+                        fprintf(stderr, "[MAIN] Invalid number of worker threads\n");
+                        fprintf(stderr, "Usage: %s [-n n_workers] file1.txt file2.txt ...\n", cmd_name);
+                        return EXIT_FAILURE;
                     }
-                }
-                else {
+                    break;
+                case -1:
+                    if (optind < argc) {
+                        // process remaining arguments
+                        nFiles = argc - optind;
+                        printf("Number of files: %d\n", nFiles);
+                        fileNames = (char **)malloc((nFiles + 1) * sizeof(char *));
+                        for (int i = optind; i < argc; i++) {
+                            fileNames[i - optind] = argv[i];
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "Usage: %s [-n n_workers] file1.txt file2.txt ...\n", cmd_name);
+                        exit(EXIT_FAILURE);
+                    }
+                    break;
+                default:
                     fprintf(stderr, "Usage: %s [-n n_workers] file1.txt file2.txt ...\n", cmd_name);
                     exit(EXIT_FAILURE);
-                }
-                break;
-            default:
-                fprintf(stderr, "Usage: %s [-n n_workers] file1.txt file2.txt ...\n", cmd_name);
-                exit(EXIT_FAILURE);
-        }
-    } while (opt != -1);
+            }
+        } while (opt != -1);
 
-    printf("Number of workers: %d\n\n", nThreads);
+        printf("Number of processes: %d\n\n", nProcesses);
 
-    initializeCharMeaning();
-    pthread_t threads[nThreads];
+        get_delta_time();
 
-    get_delta_time();
+        initFinalResults(nFiles, fileNames);
+        distributeChunks(nProcesses);
 
-    initSharedData(nFiles, fileNames);
-
-    // create nThreads threads
-    for (int i = 0; i < nThreads; i++) {
-        pthread_create(&threads[i], NULL, worker, &i);
+        printResults(nFiles);
+        printf("Elapsed time: %f\n", get_delta_time());
+    }
+    else {
+        workerRoutine(rank);
     }
 
-    // join nThreads threads
-    for (int i = 0; i < nThreads; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    printResults(nFiles);
-
-    printf("Elapsed time: %f\n", get_delta_time());
+    MPI_Finalize();
     return EXIT_SUCCESS;
 }

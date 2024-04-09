@@ -9,56 +9,48 @@
  *  \author João Fonseca - March 2024
  *  \author Rafael Gonçalves - March 2024
  */
-#include "shared.h"
+#include "fileDataHandler.h"
 #include "wordUtils.h"
 
 /** \brief Structure that represents the final results of each file */
-struct SharedFileData *sharedFileData;
+final_file_results *finalFileData;
 
-/** \brief Structure that represents the monitor to control the access to the shared data */
-struct Monitor monitor;
+/** \brief Current file index */
+int currentFile;
+
+/** \brief Number of files being processed. */
+int nFiles;
 
 /** \brief Allocates and initializes both the shared data and the monitor.
  *
  *  \param _nFiles number of files
  *  \param fileNames array with the names of the files
  */
-void initSharedData(int _nFiles, char **fileNames) {
-    sharedFileData = (struct SharedFileData *)malloc((_nFiles + 1) * sizeof(struct SharedFileData));
+final_file_results* initFinalResults(int _nFiles, char **fileNames) {
+    finalFileData = (final_file_results *)malloc((_nFiles + 1) * sizeof(final_file_results));
     for (int i = 0; i < _nFiles; i++) {
-        sharedFileData[i].fileName = fileNames[i];
-        sharedFileData[i].nWords = 0;
-        sharedFileData[i].nWordsWMultCons = 0;
-        sharedFileData[i].fp = NULL;
+        finalFileData[i].fileName = fileNames[i];
+        finalFileData[i].nWords = 0;
+        finalFileData[i].nWordsWMultCons = 0;
+        finalFileData[i].fp = NULL;
     }
 
-    monitor = (struct Monitor){
-        0, // currentFile
-        _nFiles, // nFiles
-        sharedFileData, // filesResults
-        PTHREAD_MUTEX_INITIALIZER, // mutex
-        PTHREAD_COND_INITIALIZER // cond
-    };
+    currentFile = 0;
+    nFiles = _nFiles;
+
+    return finalFileData;
 }
 
 /** \brief Retrieves a chunk of data from the current file, guaranteeing mutual exclusion.
  *
- *  \param workerId worker id
  *  \param chunkData pointer to the chunk data structure
  */
-void retrieveData(uint8_t workerId, struct ChunkData *chunkData) {
-    if (pthread_mutex_lock(&monitor.mutex) != 0) {
-        perror("Error: could not lock mutex");
-        pthread_exit(NULL);
-    }
+void retrieveData(chunk_data *chunkData) {
 
-    // get current file index
-    int fileIndex = monitor.currentFile;
-
-    if (monitor.currentFile < monitor.nFiles) {
+    if (currentFile < nFiles) {
         // open file
-        if (sharedFileData[fileIndex].fp == NULL) {
-            if ((sharedFileData[fileIndex].fp = fopen(sharedFileData[fileIndex].fileName, "rb")) == NULL) {
+        if (finalFileData[currentFile].fp == NULL) {
+            if ((finalFileData[currentFile].fp = fopen(finalFileData[currentFile].fileName, "rb")) == NULL) {
                 perror("Error opening file");
                 pthread_exit(NULL);
             }
@@ -66,14 +58,14 @@ void retrieveData(uint8_t workerId, struct ChunkData *chunkData) {
 
         // read chunk
         chunkData->chunk = (char *)malloc((MAX_CHUNK_SIZE + 1) * sizeof(char)); // +1 for null terminator
-        chunkData->chunkSize = fread(chunkData->chunk, 1, MAX_CHUNK_SIZE, sharedFileData[fileIndex].fp);
-        chunkData->fileIndex = fileIndex;
+        chunkData->chunkSize = fread(chunkData->chunk, 1, MAX_CHUNK_SIZE, finalFileData[currentFile].fp);
+        chunkData->fileIndex = currentFile;
         chunkData->finished = false;
 
         // if chunk size is less than MAX_CHUNK_SIZE, then it is the last chunk
         if (chunkData->chunkSize < MAX_CHUNK_SIZE) {
-            fclose(sharedFileData[fileIndex].fp);
-            monitor.currentFile++;
+            fclose(finalFileData[currentFile].fp);
+            currentFile++;
         }
         else {
             // read until a word is complete
@@ -81,7 +73,7 @@ void retrieveData(uint8_t workerId, struct ChunkData *chunkData) {
             uint8_t charSize;
             uint8_t removePos = 0;
 
-            while (extractCharFromFile(sharedFileData[fileIndex].fp, UTF8Char, &charSize, &removePos) != EOF) {
+            while (extractCharFromFile(finalFileData[currentFile].fp, UTF8Char, &charSize, &removePos) != EOF) {
                 if (isCharNotAllowedInWordUtf8(UTF8Char)) {
                     chunkData->chunkSize -= removePos;
                     chunkData->chunk[chunkData->chunkSize] = '\0';
@@ -104,30 +96,15 @@ void retrieveData(uint8_t workerId, struct ChunkData *chunkData) {
         }
     }
 
-    // unlock mutex
-    if (pthread_mutex_unlock(&monitor.mutex) != 0) {
-        perror("Error: could not unlock mutex");
-        pthread_exit(NULL);
-    }
 }
 
 /** \brief Saves the partial results of a chunk in the shared data, guaranteeing mutual exclusion.
  *
  *  \param chunkData pointer to the chunk data structure
  */
-void saveResults(struct ChunkData *chunkData) {
-    if (pthread_mutex_lock(&monitor.mutex) != 0) {
-        perror("Error: could not lock mutex");
-        pthread_exit(NULL);
-    }
-
-    sharedFileData[chunkData->fileIndex].nWords += chunkData->nWords;
-    sharedFileData[chunkData->fileIndex].nWordsWMultCons += chunkData->nWordsWMultCons;
-
-    if (pthread_mutex_unlock(&monitor.mutex) != 0) {
-        perror("Error: could not unlock mutex");
-        pthread_exit(NULL);
-    }
+void saveResults(int nWords, int nWordsWMultCons, int fileIndex) {
+    finalFileData[fileIndex].nWords += nWords;
+    finalFileData[fileIndex].nWordsWMultCons += nWordsWMultCons;
 }
 
 /** \brief Prints the final results of each file.
@@ -136,8 +113,8 @@ void saveResults(struct ChunkData *chunkData) {
  */
 void printResults(int _nFiles) {
     for (int i = 0; i < _nFiles; i++) {
-        printf("File name: %s\n", sharedFileData[i].fileName);
-        printf("Total number of words: %d\n", sharedFileData[i].nWords);
-        printf("Total number of words with at least two instances of the same consonant: %d\n\n", sharedFileData[i].nWordsWMultCons);
+        printf("File name: %s\n", finalFileData[i].fileName);
+        printf("Total number of words: %d\n", finalFileData[i].nWords);
+        printf("Total number of words with at least two instances of the same consonant: %d\n\n", finalFileData[i].nWordsWMultCons);
     }
 }
