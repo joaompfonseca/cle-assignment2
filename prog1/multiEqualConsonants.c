@@ -108,7 +108,7 @@ void distributeChunks(int nProcesses) {
 void workerRoutine(int rank) {
     // chunk_data chunkMetaData;
     int nWords, nWordsWMultCons, fileIndex, chunkSize;
-    char* chunk = (char *) malloc((MAX_CHUNK_SIZE + 50) * sizeof(char));
+    char* chunk;
     int ptr;
     char *currentChar = (char *) malloc(MAX_CHAR_LENGTH * sizeof(char));
 
@@ -132,6 +132,8 @@ void workerRoutine(int rank) {
 
         MPI_Recv(&chunkSize, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Recv(&fileIndex, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        chunk = (char *) malloc((chunkSize + 1) * sizeof(char));
         MPI_Recv(chunk, chunkSize, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         nWords = 0;
