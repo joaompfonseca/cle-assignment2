@@ -28,7 +28,7 @@ void printUsage(char *cmd_name) {
     fprintf(stderr,
             "Usage: mpiexec MPI_REQUIRED %s REQUIRED OPTIONAL\n"
             "MPI_REQUIRED\n"
-            "-n number_of_processes : number of processes (minimum is 2, must be in the form n=2^i+1, i>=0, meaning 2^i workers and 1 distributor)\n"
+            "-n number_of_processes : number of processes (minimum is 1, must be power of 2)\n"
             "REQUIRED\n"
             "-f input_file_path     : input file with numbers\n"
             "OPTIONAL\n"
@@ -204,139 +204,6 @@ int bitonic_worker(int id) {
  *  \param arg pointer to the shared area
  */
 int bitonic_distributor(char *file_path, int direction, int n_workers, int **ret_array, int *ret_size) {
-    // open the file
-    FILE *file = fopen(file_path, "rb");
-    if (file == NULL) {
-        fprintf(stderr, "[DIST] Could not open file %s\n", file_path);
-        return EXIT_FAILURE;
-    }
-    // read the size of the array
-    int size;
-    if (fread(&size, sizeof(int), 1, file) != 1) {
-        fprintf(stderr, "[DIST] Could not read the size of the array\n");
-        fclose(file);
-        return EXIT_FAILURE;
-    }
-    // size must be power of 2
-    if ((size & (size - 1)) != 0) {
-        fprintf(stderr, "[DIST] The size of the array must be a power of 2\n");
-        fclose(file);
-        return EXIT_FAILURE;
-    }
-    fprintf(stdout, "[DIST] Array size: %d\n", size);
-    // allocate memory for the array
-    int *arr = (int *)malloc(size * sizeof(int));
-    if (arr == NULL) {
-        fprintf(stderr, "[DIST] Could not allocate memory for the array\n");
-        fclose(file);
-        return EXIT_FAILURE;
-    }
-    // load array into memory
-    int num, ni = 0;
-    while (fread(&num, sizeof(int), 1, file) == 1 && ni < size) {
-        arr[ni++] = num;
-    }
-    // close the file
-    fclose(file);
-
-    // START TIME
-    get_delta_time();
-
-    if (size > 1) {
-        int type;
-        int count = size / n_workers;
-
-        // allocate memory for the sub-array
-        int *sub_arr = (int *)malloc(count * sizeof(int));
-        if (sub_arr == NULL) {
-            fprintf(stderr, "[DIST] Could not allocate memory for the sub-array\n");
-            free(arr);
-            return EXIT_FAILURE;
-        }
-        // divide the array into n_workers parts
-        // make each worker process bitonic sort one part
-        for (int i = 0; i < n_workers; i++) {
-            // set the type of task
-            type = SORT_TASK;
-            // copy the sub-array
-            memcpy(sub_arr, arr + i * count, count * sizeof(int));
-            // direction of the sub-sort
-            int low_index = i * count;
-            int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
-            // send the task to the worker process
-            MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-            MPI_Send(&sub_direction, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-            MPI_Send(&count, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-            MPI_Send(sub_arr, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-        }
-        fprintf(stdout, "[DIST] Bitonic sort of %d parts of size %d\n", n_workers, count);
-
-        // save the sorted parts
-        for (int i = 0; i < n_workers; i++) {
-            MPI_Recv(arr + i * count, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        MPI_Barrier(MPI_COMM_WORLD);
-
-        // perform a bitonic merge of the sorted parts
-        // make each worker process bitonic merge one part, discard unused processes
-        for (count *= 2; count <= size; count *= 2) {
-            // reallocate memory for the sub-array
-            sub_arr = (int *)realloc(sub_arr, count * sizeof(int));
-            if (sub_arr == NULL) {
-                fprintf(stderr, "[DIST] Could not reallocate memory for the sub-array\n");
-                free(arr);
-                return EXIT_FAILURE;
-            }
-            int n_merge_tasks = size / count;
-            // merge tasks
-            for (int i = 0; i < n_merge_tasks; i++) {
-                // set the type of task
-                type = MERGE_TASK;
-                // copy the sub-array
-                memcpy(sub_arr, arr + i * count, count * sizeof(int));
-                // direction of the sub-merge
-                int low_index = i * count;
-                int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
-                // send the task to the worker process
-                MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-                MPI_Send(&sub_direction, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-                MPI_Send(&count, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-                MPI_Send(sub_arr, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-            }
-            // wait tasks
-            for (int i = n_merge_tasks; i < n_workers; i++) {
-                // set the type of task
-                type = WAIT_TASK;
-                // send the task to the worker process
-                MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-            }
-            fprintf(stdout, "[DIST] Bitonic merge of %d parts of size %d\n", n_merge_tasks, count);
-
-            // save the merged sub-arrays
-            for (int i = 0; i < n_merge_tasks; i++) {
-                MPI_Recv(arr + i * count, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-
-        free(sub_arr);
-
-        // termination task to all worker processes
-        for (int i = 0; i < n_workers; i++) {
-            // set the type of task
-            type = TERMINATION_TASK;
-            // send the task to the worker process
-            MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
-        }
-    }
-
-    // END TIME
-    fprintf(stdout, "[TIME] Time elapsed: %.9f seconds\n", get_delta_time());
-
-    *ret_array = arr;
-    *ret_size = size;
     return EXIT_SUCCESS;
 }
 
@@ -361,7 +228,6 @@ int main(int argc, char *argv[]) {
     // program arguments
     char *cmd_name = argv[0];
     char *file_path = NULL;
-    int n_workers = 0;
 
     // process program arguments
     int opt;
@@ -370,7 +236,7 @@ int main(int argc, char *argv[]) {
             case 'f':
                 file_path = optarg;
                 if (file_path == NULL) {
-                    fprintf(stderr, "[MAIN] Invalid file name\n");
+                    fprintf(stderr, "Invalid file name\n");
                     printUsage(cmd_name);
                     return EXIT_FAILURE;
                 }
@@ -379,7 +245,7 @@ int main(int argc, char *argv[]) {
                 printUsage(cmd_name);
                 return EXIT_SUCCESS;
             case '?':
-                fprintf(stderr, "[MAIN] Invalid option -%c\n", optopt);
+                fprintf(stderr, "Invalid option -%c\n", optopt);
                 printUsage(cmd_name);
                 return EXIT_FAILURE;
             case -1:
@@ -387,7 +253,7 @@ int main(int argc, char *argv[]) {
         }
     } while (opt != -1);
     if (file_path == NULL) {
-        fprintf(stderr, "[MAIN] Input file not specified\n");
+        fprintf(stderr, "Input file not specified\n");
         printUsage(cmd_name);
         return EXIT_FAILURE;
     }
@@ -400,45 +266,159 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-    n_workers = mpi_size - 1;
-    if (mpi_rank == 0 && (n_workers < 1 || (n_workers & (n_workers - 1)) != 0)) {
-        fprintf(stderr, "[MAIN] Invalid number of processes\n");
+    if (mpi_rank == 0 && (mpi_size & (mpi_size - 1)) != 0) {
+        fprintf(stderr, "Invalid number of processes\n");
         printUsage(cmd_name);
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-        return EXIT_FAILURE;
     }
+
+    int direction = DESCENDING;
+    int *arr, size;
 
     if (mpi_rank == 0) {
         // print program arguments
-        fprintf(stdout, "[MAIN] Input file: %s\n", file_path);
-        fprintf(stdout, "[MAIN] Workers: %d\n", n_workers);
+        fprintf(stdout, "Input file: %s\n", file_path);
+        fprintf(stdout, "Processes: %d\n", mpi_size);
 
-        int *arr, size;
-
-        // run distributor lifecycle
-        if (bitonic_distributor(file_path, DESCENDING, n_workers, &arr, &size) != 0) {
-            fprintf(stderr, "[MAIN] Error in distributor lifecycle\n");
+        // open the file
+        FILE *file = fopen(file_path, "rb");
+        if (file == NULL) {
+            fprintf(stderr, "Could not open file %s\n", file_path);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-            return EXIT_FAILURE;
+        }
+        // read the size of the array
+        int size;
+        if (fread(&size, sizeof(int), 1, file) != 1) {
+            fprintf(stderr, "Could not read the size of the array\n");
+            fclose(file);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+        // size must be power of 2
+        if ((size & (size - 1)) != 0) {
+            fprintf(stderr, "The size of the array must be a power of 2\n");
+            fclose(file);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+        fprintf(stdout, "Array size: %d\n", size);
+        // allocate memory for the array
+        arr = (int *)malloc(size * sizeof(int));
+        if (arr == NULL) {
+            fprintf(stderr, "Could not allocate memory for the array\n");
+            fclose(file);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+        // load array into memory
+        int num, ni = 0;
+        while (fread(&num, sizeof(int), 1, file) == 1 && ni < size) {
+            arr[ni++] = num;
+        }
+        // close the file
+        fclose(file);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (mpi_rank == 0) {
+        // START TIME
+        get_delta_time();
+    }
+
+    if (size > 1) {
+        int count = size / mpi_size;
+
+        // allocate memory for the sub-array
+        int *sub_arr = (int *)malloc(count * sizeof(int));
+        if (sub_arr == NULL) {
+            fprintf(stderr, "[PROC-%d] Could not allocate memory for the sub-array\n", mpi_rank);
+            free(arr);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
+        // divide the array into mpi_size parts
+        // make each process bitonic sort one part
+        fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
+
+        // scatter the array into mpi_size parts
+        MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, MPI_COMM_WORLD);
+
+        // direction of the sub-sort
+        int low_index = mpi_rank * count;
+        int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+
+        // make each process bitonic sort one part
+        bitonic_sort(sub_arr, 0, count, sub_direction);
+        fprintf(stdout, "[PROC-%d] Direction %d\n", mpi_rank, sub_direction);
+
+        // gather the sorted parts
+        MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, MPI_COMM_WORLD);
+
+        // perform a bitonic merge of the sorted parts
+        // make each process bitonic merge one part, ignore unused processes
+        MPI_Comm merge_comm;
+
+        for (count *= 2; count <= size; count *= 2) {
+            int n_merge_tasks = size / count;
+
+            // reallocate memory for the sub-array
+            sub_arr = (int *)realloc(sub_arr, count * sizeof(int));
+            if (sub_arr == NULL) {
+                fprintf(stderr, "[PROC-%d] Could not reallocate memory for the sub-array\n", mpi_rank);
+                free(arr);
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+            }
+
+            if (mpi_rank < n_merge_tasks) {
+                MPI_Comm_split(MPI_COMM_WORLD, 0, mpi_rank, &merge_comm);
+            } else {
+                MPI_Comm_split(MPI_COMM_WORLD, MPI_UNDEFINED, mpi_rank, &merge_comm);
+            }
+
+            if (merge_comm != MPI_COMM_NULL) {
+                fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
+
+                // scatter the array into n_merge_tasks parts
+                MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, merge_comm);
+
+                // direction of the sub-merge
+                int low_index = mpi_rank * count;
+                int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+
+                // make each worker process bitonic merge one part
+                bitonic_merge(sub_arr, 0, count, sub_direction);
+                fprintf(stdout, "[PROC-%d] Direction %d\n", mpi_rank, sub_direction);
+
+                // gather the merged parts
+                MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, merge_comm);
+
+                MPI_Comm_free(&merge_comm);
+            }
+        }
+
+        free(sub_arr);
+    }
+
+    if (mpi_rank == 0) {
+        // END TIME
+        fprintf(stdout, "[TIME] Time elapsed: %.9f seconds\n", get_delta_time());
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (mpi_rank == 0) {
         // check if the array is sorted
         for (int i = 0; i < size - 1; i++) {
             if (arr[i] < arr[i + 1]) {
-                fprintf(stderr, "[MAIN] Error in position %d between element %d and %d\n",
-                        i, arr[i], arr[i + 1]);
+                fprintf(stderr, "Error in position %d between element %d and %d\n", i, arr[i], arr[i + 1]);
                 free(arr);
-                return EXIT_FAILURE;
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
         }
-        fprintf(stdout, "[MAIN] The array is sorted, everything is OK! :)\n");
-    } else {
-        // run worker lifecycle
-        if (bitonic_worker(mpi_rank) != 0) {
-            fprintf(stderr, "[MAIN] Error in worker lifecycle\n");
-            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-            return EXIT_FAILURE;
-        }
+        fprintf(stdout, "The array is sorted, everything is OK! :)\n");
+    }
+
+    if (mpi_rank == 0) {
+        free(arr);
     }
 
     MPI_Finalize();
