@@ -228,20 +228,15 @@ char extractCharFromChunk(char *chunk, char *UTF8Char, int *ptr) {
  * \param consOcc Array that stores the number of occurrences of each consonant in the words.
  * \param detMultCons (Pointer) Indicates if the current word has equal consonants.
  */
-void processChar(char* word, char *UTF8Char, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons) {
+void processChar(char *UTF8Char, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons) {
     if (*inWord && isCharNotAllowedInWordUtf8(UTF8Char)) {
         *inWord = false;
         memset(consOcc, 0, 26 * sizeof(int));
-        memset(word, 0, MAX_CHAR_LENGTH);
     }
     else if (!(*inWord) && isCharStartOfWordUtf8(UTF8Char)) {
         *inWord = true;
         *detMultCons = false;
         (*nWords)++;
-        strcpy(word, UTF8Char);
-    }
-    else if (*inWord) {
-        strcat(word, UTF8Char);
     }
 
     if (strchr(CONSONANTS, UTF8Char[0]) != NULL) {

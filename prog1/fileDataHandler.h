@@ -17,15 +17,15 @@
 #define MAX_CHUNK_SIZE 4096
 
 /** \brief Structure that represents the final results of each file */
-struct SharedFileData {
+typedef struct {
     char *fileName;
     int nWords;
     int nWordsWMultCons;
     FILE *fp;
-};
+} final_file_results;
 
 /** \brief Structure that represents the monitor to control the access to the shared data */
-struct ChunkData {
+typedef struct {
     int fileIndex;
     bool finished;
     int nWords;
@@ -33,36 +33,27 @@ struct ChunkData {
     int nWordsWMultCons;
     bool inWord;
     char *chunk;
-};
-
-/** \brief Structure that represents the monitor to control the access to the shared data */
-struct Monitor {
-    int currentFile;
-    int nFiles;
-    struct SharedFileData *filesResults;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-};
+} chunk_data;
 
 /** \brief Allocates and initializes both the shared data and the monitor.
  *
  *  \param _nFiles number of files
  *  \param fileNames array with the names of the files
  */
-extern void initSharedData(int _nFiles, char **fileNames);
+extern final_file_results* initFinalResults(int _nFiles, char **fileNames);
 
 /** \brief Retrieves a chunk of data from the current file, guaranteeing mutual exclusion.
  *
  *  \param workerId worker id
  *  \param chunkData pointer to the chunk data structure
  */
-extern void retrieveData(uint8_t workerId, struct ChunkData *chunkData);
+extern void retrieveData(chunk_data *chunkData);
 
 /** \brief Saves the partial results of a chunk in the shared data, guaranteeing mutual exclusion.
  *
  *  \param chunkData pointer to the chunk data structure
  */
-extern void saveResults(struct ChunkData *chunkData);
+extern void saveResults(int nWords, int nWordsWMultCons, int fileIndex);
 
 /** \brief Prints the final results of each file.
  *

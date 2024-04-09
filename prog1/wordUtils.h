@@ -93,4 +93,4 @@ extern char extractCharFromChunk(char *chunk, char *UTF8Char, int *ptr);
  * \param consOcc Array that stores the number of occurrences of each consonant in the words.
  * \param detMultCons (Pointer) Indicates if the current word has equal consonants.
  */
-extern void processChar(char *word, char *currentChar, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons);
+extern void processChar(char *currentChar, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons);
