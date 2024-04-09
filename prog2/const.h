@@ -27,7 +27,10 @@
 /** \brief Represents a merge task */
 #define MERGE_TASK 1
 
+/** \brief Represents a wait task */
+#define WAIT_TASK 2
+
 /** \brief Represents a termination task */
-#define TERMINATION_TASK 2
+#define TERMINATION_TASK 3
 
 #endif /* CONST_H */
