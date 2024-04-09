@@ -9,10 +9,12 @@
  *  \author Rafael Gonçalves - March 2024
  */
 
+#include <getopt.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <getopt.h>
+#include <time.h>
 
 #include "const.h"
 #include "shared.c"
@@ -23,12 +25,15 @@
  *  \param cmd_name name of the command that started the program
  */
 void printUsage(char *cmd_name) {
-    fprintf(stderr, "Usage: %s REQUIRED OPTIONS\n"
-                    "REQUIRED:\n"
-                    "-f --- input file with numbers\n"
-                    "OPTIONS:\n"
-                    "-h --- print this help\n"
-                    "-n --- number of worker threads (default is %d, minimum is 1)\n", cmd_name, N_WORKERS);
+    fprintf(stderr,
+            "Usage: mpiexec MPI_REQUIRED %s REQUIRED OPTIONAL\n"
+            "MPI_REQUIRED\n"
+            "-n number_of_processes : number of processes (minimum is 2, must be in the form n=2^i+1, i>=0, meaning 2^i workers and 1 distributor)\n"
+            "REQUIRED\n"
+            "-f input_file_path     : input file with numbers\n"
+            "OPTIONAL\n"
+            "-h                     : shows how to use the program\n",
+            cmd_name);
 }
 
 /**
@@ -46,7 +51,7 @@ static double get_delta_time(void) {
         fprintf(stderr, "[TIME] Could not get the time\n");
         exit(EXIT_FAILURE);
     }
-    return (double) (t1.tv_sec - t0.tv_sec) + 1.0e-9 * (double) (t1.tv_nsec - t0.tv_nsec);
+    return (double)(t1.tv_sec - t0.tv_sec) + 1.0e-9 * (double)(t1.tv_nsec - t0.tv_nsec);
 }
 
 /**
@@ -69,7 +74,7 @@ void free_all(void **pointers, int size) {
  *  \param count number of elements in the array
  *  \param direction 0 for descending order, 1 for ascending order
  */
-void bitonic_merge(int *arr, int low_index, int count, int direction) { // NOLINT(*-no-recursion)
+void bitonic_merge(int *arr, int low_index, int count, int direction) {  // NOLINT(*-no-recursion)
     if (count <= 1) return;
     int half = count / 2;
     // move the numbers to the correct half
@@ -94,7 +99,7 @@ void bitonic_merge(int *arr, int low_index, int count, int direction) { // NOLIN
  *  \param count number of elements in the array
  *  \param direction 0 for descending order, 1 for ascending order
  */
-void bitonic_sort(int *arr, int low_index, int count, int direction) { // NOLINT(*-no-recursion)
+void bitonic_sort(int *arr, int low_index, int count, int direction) {  // NOLINT(*-no-recursion)
     if (count <= 1) return;
     int half = count / 2;
     // sort left half in ascending order
@@ -124,26 +129,67 @@ typedef struct {
  *
  *  \param arg pointer to the argument structure, that contains the index of the worker thread and the shared area
  */
-static void *bitonic_worker(void *arg) {
-    bitonic_worker_arg_t *worker_arg = (bitonic_worker_arg_t *) arg;
-    int index = worker_arg->index;
-    shared_t *shared = worker_arg->shared;
+int bitonic_worker(int id) {
+    int type, direction, count;
+    int *arr = (int *)malloc(sizeof(int));
+
+    fprintf(stdout, "[WORKER-%d] started\n", id);
 
     while (1) {
-        task_t task = get_task(shared, index);
-        if (task.type == SORT_TASK) {
-            bitonic_sort(task.arr, task.low_index, task.count, task.direction);
-            task_done(shared, index);
-        } else if (task.type == MERGE_TASK) {
-            bitonic_merge(task.arr, task.low_index, task.count, task.direction);
-            task_done(shared, index);
+        MPI_Recv(&type, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        fprintf(stdout, "[WORKER-%d] received task type=%d\n", id, type);
+
+        if (type == SORT_TASK) {
+            MPI_Recv(&direction, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task direction=%d\n", id, direction);
+
+            MPI_Recv(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task count=%d\n", id, count);
+
+            arr = (int *)realloc(arr, count * sizeof(int));
+            if (arr == NULL) {
+                fprintf(stderr, "[WORKER-%d] Could not allocate memory for the array\n", id);
+                free(arr);
+                return EXIT_FAILURE;
+            }
+            MPI_Recv(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task array\n", id);
+
+            bitonic_sort(arr, 0, count, direction);
+
+            MPI_Send(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+
+        } else if (type == MERGE_TASK) {
+            MPI_Recv(&direction, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task direction=%d\n", id, direction);
+
+            MPI_Recv(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task count=%d\n", id, count);
+
+            arr = (int *)realloc(arr, count * sizeof(int));
+            if (arr == NULL) {
+                fprintf(stderr, "[WORKER-%d] Could not allocate memory for the array\n", id);
+                free(arr);
+                return EXIT_FAILURE;
+            }
+            MPI_Recv(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            fprintf(stdout, "[WORKER-%d] received task array\n", id);
+
+            bitonic_merge(arr, 0, count, direction);
+
+            MPI_Send(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+        } else if (type == WAIT_TASK) {
+            MPI_Barrier(MPI_COMM_WORLD);
         } else {
             // termination task
-            task_done(shared, index);
             break;
         }
     }
-    return (void *) EXIT_SUCCESS;
+
+    free(arr);
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -157,38 +203,33 @@ static void *bitonic_worker(void *arg) {
  *
  *  \param arg pointer to the shared area
  */
-static void *bitonic_distributor(void *arg) {
-    shared_t *shared = (shared_t *) arg;
-    char *file_path = shared->config.file_path;
-    int direction = shared->config.direction;
-    int n_workers = shared->config.n_workers;
-
+int bitonic_distributor(char *file_path, int direction, int n_workers, int **ret_array, int *ret_size) {
     // open the file
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
         fprintf(stderr, "[DIST] Could not open file %s\n", file_path);
-        return (void *) EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
     // read the size of the array
     int size;
     if (fread(&size, sizeof(int), 1, file) != 1) {
         fprintf(stderr, "[DIST] Could not read the size of the array\n");
         fclose(file);
-        return (void *) EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
     // size must be power of 2
     if ((size & (size - 1)) != 0) {
         fprintf(stderr, "[DIST] The size of the array must be a power of 2\n");
         fclose(file);
-        return (void *) EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
     fprintf(stdout, "[DIST] Array size: %d\n", size);
     // allocate memory for the array
-    int *arr = (int *) malloc(size * sizeof(int));
+    int *arr = (int *)malloc(size * sizeof(int));
     if (arr == NULL) {
         fprintf(stderr, "[DIST] Could not allocate memory for the array\n");
         fclose(file);
-        return (void *) EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
     // load array into memory
     int num, ni = 0;
@@ -198,67 +239,105 @@ static void *bitonic_distributor(void *arg) {
     // close the file
     fclose(file);
 
-    // initialize the array to be sorted
-    init_arr(&shared->config, arr, size);
-
-    // allocate memory for the list of tasks
-    task_t *list = (task_t *) malloc(n_workers * sizeof(task_t));
-    if (list == NULL) {
-        fprintf(stderr, "[DIST] Could not allocate memory for the list of tasks\n");
-        free_all((void **) arr, 1);
-        return (void *) EXIT_FAILURE;
-    }
-
     // START TIME
     get_delta_time();
 
     if (size > 1) {
-        // divide the array into n_workers parts
-        // make each worker thread bitonic sort one part
+        int type;
         int count = size / n_workers;
-        for (int i = 0; i < n_workers; i++) {
-            int low_index = i * count;
-            // direction of the sub-sort
-            int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
-            task_t task = {SORT_TASK, arr, low_index, count, sub_direction};
-            list[i] = task;
+
+        // allocate memory for the sub-array
+        int *sub_arr = (int *)malloc(count * sizeof(int));
+        if (sub_arr == NULL) {
+            fprintf(stderr, "[DIST] Could not allocate memory for the sub-array\n");
+            free(arr);
+            return EXIT_FAILURE;
         }
-        set_tasks(shared, list, n_workers);
+        // divide the array into n_workers parts
+        // make each worker process bitonic sort one part
+        for (int i = 0; i < n_workers; i++) {
+            // set the type of task
+            type = SORT_TASK;
+            // copy the sub-array
+            memcpy(sub_arr, arr + i * count, count * sizeof(int));
+            // direction of the sub-sort
+            int low_index = i * count;
+            int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+            // send the task to the worker process
+            MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(&sub_direction, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(&count, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(sub_arr, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+        }
         fprintf(stdout, "[DIST] Bitonic sort of %d parts of size %d\n", n_workers, count);
 
-        // perform a bitonic merge of the sorted parts
-        // make each worker thread bitonic merge one part, discard unused threads
-        for (count *= 2; count <= size; count *= 2) {
-            int n_tasks = size / count;
-            // merge tasks
-            for (int i = 0; i < n_tasks; i++) {
-                int low_index = i * count;
-                // direction of the sub-merge
-                int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
-                task_t task = {MERGE_TASK, arr, low_index, count, sub_direction};
-                list[i] = task;
-            }
-            // termination tasks
-            for (int i = n_tasks; i < n_workers; i++) {
-                task_t task = {TERMINATION_TASK};
-                list[i] = task;
-            }
-            set_tasks(shared, list, n_workers);
-            fprintf(stdout, "[DIST] Bitonic merge of %d parts of size %d\n", n_tasks, count);
-            // update the number of workers
-            n_workers = n_tasks;
+        // save the sorted parts
+        for (int i = 0; i < n_workers; i++) {
+            MPI_Recv(arr + i * count, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
-        // termination task to last worker thread
-        task_t task = {TERMINATION_TASK};
-        list[0] = task;
-        set_tasks(shared, list, 1);
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        // perform a bitonic merge of the sorted parts
+        // make each worker process bitonic merge one part, discard unused processes
+        for (count *= 2; count <= size; count *= 2) {
+            // reallocate memory for the sub-array
+            sub_arr = (int *)realloc(sub_arr, count * sizeof(int));
+            if (sub_arr == NULL) {
+                fprintf(stderr, "[DIST] Could not reallocate memory for the sub-array\n");
+                free(arr);
+                return EXIT_FAILURE;
+            }
+            int n_merge_tasks = size / count;
+            // merge tasks
+            for (int i = 0; i < n_merge_tasks; i++) {
+                // set the type of task
+                type = MERGE_TASK;
+                // copy the sub-array
+                memcpy(sub_arr, arr + i * count, count * sizeof(int));
+                // direction of the sub-merge
+                int low_index = i * count;
+                int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+                // send the task to the worker process
+                MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(&sub_direction, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(&count, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(sub_arr, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+            }
+            // wait tasks
+            for (int i = n_merge_tasks; i < n_workers; i++) {
+                // set the type of task
+                type = WAIT_TASK;
+                // send the task to the worker process
+                MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+            }
+            fprintf(stdout, "[DIST] Bitonic merge of %d parts of size %d\n", n_merge_tasks, count);
+
+            // save the merged sub-arrays
+            for (int i = 0; i < n_merge_tasks; i++) {
+                MPI_Recv(arr + i * count, count, MPI_INT, i + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+
+        free(sub_arr);
+
+        // termination task to all worker processes
+        for (int i = 0; i < n_workers; i++) {
+            // set the type of task
+            type = TERMINATION_TASK;
+            // send the task to the worker process
+            MPI_Send(&type, 1, MPI_INT, i + 1, 0, MPI_COMM_WORLD);
+        }
     }
 
     // END TIME
     fprintf(stdout, "[TIME] Time elapsed: %.9f seconds\n", get_delta_time());
 
-    return (void *) EXIT_SUCCESS;
+    *ret_array = arr;
+    *ret_size = size;
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -282,24 +361,16 @@ int main(int argc, char *argv[]) {
     // program arguments
     char *cmd_name = argv[0];
     char *file_path = NULL;
-    int n_workers = N_WORKERS;
+    int n_workers = 0;
 
-    // process command line options
+    // process program arguments
     int opt;
     do {
-        switch ((opt = getopt(argc, argv, "f:n:"))) {
+        switch ((opt = getopt(argc, argv, "f:h"))) {
             case 'f':
                 file_path = optarg;
                 if (file_path == NULL) {
                     fprintf(stderr, "[MAIN] Invalid file name\n");
-                    printUsage(cmd_name);
-                    return EXIT_FAILURE;
-                }
-                break;
-            case 'n':
-                n_workers = atoi(optarg);
-                if (n_workers < 1) {
-                    fprintf(stderr, "[MAIN] Invalid number of worker threads\n");
                     printUsage(cmd_name);
                     return EXIT_FAILURE;
                 }
@@ -320,124 +391,57 @@ int main(int argc, char *argv[]) {
         printUsage(cmd_name);
         return EXIT_FAILURE;
     }
-    fprintf(stdout, "[MAIN] Input file: %s\n", file_path);
-    fprintf(stdout, "[MAIN] Worker threads: %d\n", n_workers);
 
-    // allocate memory for the configuration
-    config_t *config = (config_t *) malloc(sizeof(config_t));
-    if (config == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the configuration\n");
-        return EXIT_FAILURE;
-    }
-    // allocate memory for the tasks
-    tasks_t *tasks = (tasks_t *) malloc(sizeof(tasks_t));
-    if (tasks == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the list of tasks\n");
-        free_all((void *[]) {config}, 1);
-        return EXIT_FAILURE;
-    }
-    // allocate memory for the list of tasks
-    task_t *list = (task_t *) malloc(n_workers * sizeof(task_t));
-    if (list == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the list of tasks\n");;
-        free_all((void *[]) {config, tasks}, 2);
-        return EXIT_FAILURE;
-    }
-    // allocate memory for the list of threads done
-    int *is_thread_done = (int *) malloc(n_workers * sizeof(int));
-    if (is_thread_done == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the list of threads done\n");
-        free_all((void *[]) {config, tasks, list}, 3);
-        return EXIT_FAILURE;
-    }
-    // allocate memory for the shared area
-    shared_t *shared = (shared_t *) malloc(sizeof(shared_t));
-    if (shared == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the shared area\n");
-        free_all((void *[]) {config, tasks, list, is_thread_done}, 4);
-        return EXIT_FAILURE;
-    }
-    // initialize the configuration, tasks and shared area
-    init_config(config, file_path, DESCENDING, n_workers);
-    init_tasks(tasks, list, n_workers, is_thread_done);
-    init_shared(shared, config, tasks);
+    // mpi arguments
+    int mpi_rank, mpi_size;
 
-    // create distributor thread
-    pthread_t *distributor = (pthread_t *) malloc(sizeof(pthread_t));
-    if (distributor == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the distributor thread\n");
-        free_all((void *[]) {config, tasks, list, is_thread_done, shared}, 5);
+    // initialize mpi
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+    n_workers = mpi_size - 1;
+    if (mpi_rank == 0 && (n_workers < 1 || (n_workers & (n_workers - 1)) != 0)) {
+        fprintf(stderr, "[MAIN] Invalid number of processes\n");
+        printUsage(cmd_name);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         return EXIT_FAILURE;
     }
-    if (pthread_create(distributor, NULL, bitonic_distributor, shared) != 0) {
-        fprintf(stderr, "[MAIN] Could not create distributor thread\n");
-        free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor}, 6);
-        return EXIT_FAILURE;
+
+    if (mpi_rank == 0) {
+        // print program arguments
+        fprintf(stdout, "[MAIN] Input file: %s\n", file_path);
+        fprintf(stdout, "[MAIN] Workers: %d\n", n_workers);
+
+        int *arr, size;
+
+        // run distributor lifecycle
+        if (bitonic_distributor(file_path, DESCENDING, n_workers, &arr, &size) != 0) {
+            fprintf(stderr, "[MAIN] Error in distributor lifecycle\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+            return EXIT_FAILURE;
+        }
+
+        // check if the array is sorted
+        for (int i = 0; i < size - 1; i++) {
+            if (arr[i] < arr[i + 1]) {
+                fprintf(stderr, "[MAIN] Error in position %d between element %d and %d\n",
+                        i, arr[i], arr[i + 1]);
+                free(arr);
+                return EXIT_FAILURE;
+            }
+        }
+        fprintf(stdout, "[MAIN] The array is sorted, everything is OK! :)\n");
     } else {
-        fprintf(stdout, "[MAIN] Distributor thread has been created\n");
-    }
-    // create worker threads
-    pthread_t *workers = (pthread_t *) malloc(n_workers * sizeof(pthread_t));
-    if (workers == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the worker threads\n");
-        free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor}, 6);
-        return EXIT_FAILURE;
-    }
-    bitonic_worker_arg_t *workers_arg = (bitonic_worker_arg_t *) malloc(n_workers * sizeof(bitonic_worker_arg_t));
-    if (workers_arg == NULL) {
-        fprintf(stderr, "[MAIN] Could not allocate memory for the worker threads arguments\n");
-        free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers}, 7);
-        return EXIT_FAILURE;
-    }
-    for (int i = 0; i < n_workers; i++) {
-        workers_arg[i] = (bitonic_worker_arg_t) {i, shared};
-        if (pthread_create(&workers[i], NULL, bitonic_worker, &workers_arg[i]) != 0) {
-            fprintf(stderr, "[MAIN] Could not create worker thread %d\n", i + 1);
-            free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers, workers_arg}, 8);
-            return EXIT_FAILURE;
-        } else {
-            fprintf(stdout, "[MAIN] Worker threads have been created (%d/%d)\n", i + 1, n_workers);
-        }
-    }
-
-    // wait for threads to finish
-    void *ptr_retcode_void;
-    int *ptr_retcode_int;
-    pthread_join(*distributor, &ptr_retcode_void);
-    ptr_retcode_int = (int *) ptr_retcode_void;
-    if (ptr_retcode_int != EXIT_SUCCESS) {
-        fprintf(stderr, "[MAIN] Distributor thread has failed with return code %d\n", *ptr_retcode_int);
-        free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers, workers_arg}, 8);
-        return EXIT_FAILURE;
-    } else {
-        fprintf(stdout, "[MAIN] Distributor thread has finished\n");
-    }
-    for (int i = 0; i < n_workers; i++) {
-        pthread_join(workers[i], &ptr_retcode_void);
-        ptr_retcode_int = (int *) ptr_retcode_void;
-        if (ptr_retcode_int != EXIT_SUCCESS) {
-            fprintf(stderr, "[MAIN] Worker thread %d has failed with return code %d\n", i + 1,
-                    *ptr_retcode_int);
-            free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers, workers_arg}, 8);
-            return EXIT_FAILURE;
-        } else {
-            fprintf(stdout, "[MAIN] Worker threads have finished (%d/%d)\n", i + 1, n_workers);
-        }
-    }
-
-    // check if array is sorted
-    int *arr = shared->config.arr;
-    int size = shared->config.size;
-    for (int i = 0; i < size - 1; i++) {
-        if (arr[i] < arr[i + 1]) {
-            fprintf(stderr, "[MAIN] Error in position %d between element %d and %d\n",
-                    i, arr[i], arr[i + 1]);
-            free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers, workers_arg}, 8);
+        // run worker lifecycle
+        if (bitonic_worker(mpi_rank) != 0) {
+            fprintf(stderr, "[MAIN] Error in worker lifecycle\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             return EXIT_FAILURE;
         }
     }
-    printf("[MAIN] The array is sorted, everything is OK! :)\n");
 
-    free_all((void *[]) {config, tasks, list, is_thread_done, shared, distributor, workers, workers_arg, arr}, 9);
+    MPI_Finalize();
+
     return EXIT_SUCCESS;
 }
