@@ -2,7 +2,7 @@
 
 compile:
 	@echo "Compiling..."
-	mpicc -Wall -O3 -o prog2 multiBitonic.c
+	mpicc -Wall -O3 -o prog2 mpiBitonic.c
 
 test: compile
 	@echo "Testing..."

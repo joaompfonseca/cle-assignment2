@@ -1,48 +1,48 @@
-File: datSeq32.bin; Threads: 1
-[TIME] Time elapsed: 0.000144010 seconds
+File: datSeq32.bin; Processes: 1
+[TIME] Time elapsed: 0.000579277 seconds
 
-File: datSeq32.bin; Threads: 2
-[TIME] Time elapsed: 0.000443466 seconds
+File: datSeq32.bin; Processes: 2
+[TIME] Time elapsed: 0.000088277 seconds
 
-File: datSeq32.bin; Threads: 4
-[TIME] Time elapsed: 0.001109793 seconds
+File: datSeq32.bin; Processes: 4
+[TIME] Time elapsed: 0.000564464 seconds
 
-File: datSeq32.bin; Threads: 8
-[TIME] Time elapsed: 0.001391197 seconds
+File: datSeq32.bin; Processes: 8
+[TIME] Time elapsed: 0.014596888 seconds
 
-File: datSeq256K.bin; Threads: 1
-[TIME] Time elapsed: 0.079225623 seconds
+File: datSeq256K.bin; Processes: 1
+[TIME] Time elapsed: 0.088660670 seconds
 
-File: datSeq256K.bin; Threads: 2
-[TIME] Time elapsed: 0.063117669 seconds
+File: datSeq256K.bin; Processes: 2
+[TIME] Time elapsed: 0.060252537 seconds
 
-File: datSeq256K.bin; Threads: 4
-[TIME] Time elapsed: 0.035385678 seconds
+File: datSeq256K.bin; Processes: 4
+[TIME] Time elapsed: 0.053201984 seconds
 
-File: datSeq256K.bin; Threads: 8
-[TIME] Time elapsed: 0.033687834 seconds
+File: datSeq256K.bin; Processes: 8
+[TIME] Time elapsed: 0.070735289 seconds
 
-File: datSeq1M.bin; Threads: 1
-[TIME] Time elapsed: 0.334630909 seconds
+File: datSeq1M.bin; Processes: 1
+[TIME] Time elapsed: 0.408501716 seconds
 
-File: datSeq1M.bin; Threads: 2
-[TIME] Time elapsed: 0.221614018 seconds
+File: datSeq1M.bin; Processes: 2
+[TIME] Time elapsed: 0.259943957 seconds
 
-File: datSeq1M.bin; Threads: 4
-[TIME] Time elapsed: 0.136802968 seconds
+File: datSeq1M.bin; Processes: 4
+[TIME] Time elapsed: 0.203409715 seconds
 
-File: datSeq1M.bin; Threads: 8
-[TIME] Time elapsed: 0.121676873 seconds
+File: datSeq1M.bin; Processes: 8
+[TIME] Time elapsed: 0.265398748 seconds
 
-File: datSeq16M.bin; Threads: 1
-[TIME] Time elapsed: 7.058241884 seconds
+File: datSeq16M.bin; Processes: 1
+[TIME] Time elapsed: 7.644828257 seconds
 
-File: datSeq16M.bin; Threads: 2
-[TIME] Time elapsed: 3.889325836 seconds
+File: datSeq16M.bin; Processes: 2
+[TIME] Time elapsed: 5.046047186 seconds
 
-File: datSeq16M.bin; Threads: 4
-[TIME] Time elapsed: 2.491314707 seconds
+File: datSeq16M.bin; Processes: 4
+[TIME] Time elapsed: 3.941626100 seconds
 
-File: datSeq16M.bin; Threads: 8
-[TIME] Time elapsed: 1.998820268 seconds
+File: datSeq16M.bin; Processes: 8
+[TIME] Time elapsed: 4.105425329 seconds
 

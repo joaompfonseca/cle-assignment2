@@ -1,14 +1,15 @@
 /**
- *  \file multiBitonic.c (implementation file)
+ *  \file mpiBitonic.c (implementation file)
  *
- *  \brief Assignment 1.2: multithreaded bitonic sort.
+ *  \brief Assignment 2.2: mpi-based bitonic sort.
  *
- *  This file contains the definition of the multithreaded bitonic sort algorithm.
+ *  This file contains the definition of the mpi-based bitonic sort algorithm.
  *
  *  \author João Fonseca - March 2024
  *  \author Rafael Gonçalves - March 2024
  */
 
+#include <assert.h>
 #include <getopt.h>
 #include <mpi.h>
 #include <stdio.h>
@@ -17,12 +18,11 @@
 #include <time.h>
 
 #include "const.h"
-#include "shared.c"
 
 /**
  *  \brief Prints the usage of the program.
  *
- *  \param cmd_name name of the command that started the program
+ *  \param cmd_name name of the program file
  */
 void printUsage(char *cmd_name) {
     fprintf(stderr,
@@ -52,18 +52,6 @@ static double get_delta_time(void) {
         exit(EXIT_FAILURE);
     }
     return (double)(t1.tv_sec - t0.tv_sec) + 1.0e-9 * (double)(t1.tv_nsec - t0.tv_nsec);
-}
-
-/**
- * \brief Free memory from all pointers in the list.
- *
- * \param pointers list of pointers to be freed
- * \param size number of pointers in the list
- */
-void free_all(void **pointers, int size) {
-    for (int i = 0; i < size; i++) {
-        free(pointers[i]);
-    }
 }
 
 /**
@@ -111,113 +99,19 @@ void bitonic_sort(int *arr, int low_index, int count, int direction) {  // NOLIN
 }
 
 /**
- *  \brief Argument structure for the worker threads.
- */
-typedef struct {
-    int index;
-    shared_t *shared;
-} bitonic_worker_arg_t;
-
-/**
- *  \brief Worker thread function that executes tasks.
- *
- *  Lifecycle loop:
- *  - get a task from the shared area
- *  - if the task is a sort task, sort the array
- *  - if the task is a merge task, merge the array
- *  - if the task is a termination task, finish the thread
- *
- *  \param arg pointer to the argument structure, that contains the index of the worker thread and the shared area
- */
-int bitonic_worker(int id) {
-    int type, direction, count;
-    int *arr = (int *)malloc(sizeof(int));
-
-    fprintf(stdout, "[WORKER-%d] started\n", id);
-
-    while (1) {
-        MPI_Recv(&type, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        fprintf(stdout, "[WORKER-%d] received task type=%d\n", id, type);
-
-        if (type == SORT_TASK) {
-            MPI_Recv(&direction, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task direction=%d\n", id, direction);
-
-            MPI_Recv(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task count=%d\n", id, count);
-
-            arr = (int *)realloc(arr, count * sizeof(int));
-            if (arr == NULL) {
-                fprintf(stderr, "[WORKER-%d] Could not allocate memory for the array\n", id);
-                free(arr);
-                return EXIT_FAILURE;
-            }
-            MPI_Recv(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task array\n", id);
-
-            bitonic_sort(arr, 0, count, direction);
-
-            MPI_Send(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
-            MPI_Barrier(MPI_COMM_WORLD);
-
-        } else if (type == MERGE_TASK) {
-            MPI_Recv(&direction, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task direction=%d\n", id, direction);
-
-            MPI_Recv(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task count=%d\n", id, count);
-
-            arr = (int *)realloc(arr, count * sizeof(int));
-            if (arr == NULL) {
-                fprintf(stderr, "[WORKER-%d] Could not allocate memory for the array\n", id);
-                free(arr);
-                return EXIT_FAILURE;
-            }
-            MPI_Recv(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            fprintf(stdout, "[WORKER-%d] received task array\n", id);
-
-            bitonic_merge(arr, 0, count, direction);
-
-            MPI_Send(arr, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
-            MPI_Barrier(MPI_COMM_WORLD);
-        } else if (type == WAIT_TASK) {
-            MPI_Barrier(MPI_COMM_WORLD);
-        } else {
-            // termination task
-            break;
-        }
-    }
-
-    free(arr);
-    return EXIT_SUCCESS;
-}
-
-/**
- *  \brief Distributor thread function that assigns tasks to worker threads.
- *
- *  Lifecycle:
- *  - read the array from the file
- *  - divide the array into n_workers parts and assign a sort task to each worker thread
- *  - perform a bitonic merge of the sorted parts and assign a merge task to each worker thread
- *  - terminate worker threads that are not needed anymore
- *
- *  \param arg pointer to the shared area
- */
-int bitonic_distributor(char *file_path, int direction, int n_workers, int **ret_array, int *ret_size) {
-    return EXIT_SUCCESS;
-}
-
-/**
  *  \brief Main function of the program.
  *
  *  Lifecycle:
- *  - process command line options
- *  - allocate memory for the shared area, configuration, tasks, list of tasks and list of threads done
- *  - initialize the configuration, tasks and shared area
- *  - create distributor thread
- *  - create worker threads
- *  - wait for threads to finish
- *  - check if the array is sorted
+ *  - process program arguments
+ *  - initialize mpi variables 
+ *  - rank 0: read the array from the file
+ *  - rank 0: broadcast the size of the array
+ *  - rank 0: start time
+ *  - mpi scatter/gather to bitonic sort each part of the array
+ *  - create mpi communicator for processes involved in the bitonic merge tasks
+ *  - mpi scatter/gather to bitonic merge each part of the array until it's sorted
+ *  - rank 0: stop time
+ *  - rank 0: check if the array is sorted
  *
  *  \param argc number of command line arguments
  *  \param argv array of command line arguments
@@ -331,12 +225,12 @@ int main(int argc, char *argv[]) {
         int *sub_arr = (int *)malloc(count * sizeof(int));
         if (sub_arr == NULL) {
             fprintf(stderr, "[PROC-%d] Could not allocate memory for the sub-array\n", mpi_rank);
-            free(arr);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
-        // divide the array into mpi_size parts
-        // make each process bitonic sort one part
+        /* divide the array into mpi_size parts
+           make each process bitonic sort one part */
+
         fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
 
         // scatter the array into mpi_size parts
@@ -348,13 +242,14 @@ int main(int argc, char *argv[]) {
 
         // make each process bitonic sort one part
         bitonic_sort(sub_arr, 0, count, sub_direction);
-        fprintf(stdout, "[PROC-%d] Direction %d\n", mpi_rank, sub_direction);
 
         // gather the sorted parts
         MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, MPI_COMM_WORLD);
 
-        // perform a bitonic merge of the sorted parts
-        // make each process bitonic merge one part, ignore unused processes
+        /* perform a bitonic merge of the sorted parts
+           make each process bitonic merge one part */
+
+        // create a communicator for the merge tasks
         MPI_Comm merge_comm;
 
         for (count *= 2; count <= size; count *= 2) {
@@ -364,10 +259,10 @@ int main(int argc, char *argv[]) {
             sub_arr = (int *)realloc(sub_arr, count * sizeof(int));
             if (sub_arr == NULL) {
                 fprintf(stderr, "[PROC-%d] Could not reallocate memory for the sub-array\n", mpi_rank);
-                free(arr);
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
 
+            // associate processes involved in the merge tasks to the communicator
             if (mpi_rank < n_merge_tasks) {
                 MPI_Comm_split(MPI_COMM_WORLD, 0, mpi_rank, &merge_comm);
             } else {
@@ -386,7 +281,6 @@ int main(int argc, char *argv[]) {
 
                 // make each worker process bitonic merge one part
                 bitonic_merge(sub_arr, 0, count, sub_direction);
-                fprintf(stdout, "[PROC-%d] Direction %d\n", mpi_rank, sub_direction);
 
                 // gather the merged parts
                 MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, merge_comm);
@@ -401,23 +295,16 @@ int main(int argc, char *argv[]) {
     if (mpi_rank == 0) {
         // END TIME
         fprintf(stdout, "[TIME] Time elapsed: %.9f seconds\n", get_delta_time());
-    }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    if (mpi_rank == 0) {
         // check if the array is sorted
         for (int i = 0; i < size - 1; i++) {
             if (arr[i] < arr[i + 1]) {
                 fprintf(stderr, "Error in position %d between element %d and %d\n", i, arr[i], arr[i + 1]);
-                free(arr);
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
         }
         fprintf(stdout, "The array is sorted, everything is OK! :)\n");
-    }
 
-    if (mpi_rank == 0) {
         free(arr);
     }
 
