@@ -102,8 +102,8 @@ void bitonic_sort(int *arr, int low_index, int count, int direction) {  // NOLIN
  *  \brief Main function of the program.
  *
  *  Lifecycle:
- *  - process program arguments
- *  - initialize mpi variables 
+ *  - initialize mpi variables
+ *  - rank 0: process program arguments
  *  - rank 0: read the array from the file
  *  - rank 0: broadcast the size of the array
  *  - rank 0: start time
@@ -123,35 +123,6 @@ int main(int argc, char *argv[]) {
     char *cmd_name = argv[0];
     char *file_path = NULL;
 
-    // process program arguments
-    int opt;
-    do {
-        switch ((opt = getopt(argc, argv, "f:h"))) {
-            case 'f':
-                file_path = optarg;
-                if (file_path == NULL) {
-                    fprintf(stderr, "Invalid file name\n");
-                    printUsage(cmd_name);
-                    return EXIT_FAILURE;
-                }
-                break;
-            case 'h':
-                printUsage(cmd_name);
-                return EXIT_SUCCESS;
-            case '?':
-                fprintf(stderr, "Invalid option -%c\n", optopt);
-                printUsage(cmd_name);
-                return EXIT_FAILURE;
-            case -1:
-                break;
-        }
-    } while (opt != -1);
-    if (file_path == NULL) {
-        fprintf(stderr, "Input file not specified\n");
-        printUsage(cmd_name);
-        return EXIT_FAILURE;
-    }
-
     // mpi arguments
     int mpi_rank, mpi_size;
 
@@ -167,9 +138,38 @@ int main(int argc, char *argv[]) {
     }
 
     int direction = DESCENDING;
-    int *arr, size;
+    int *arr = NULL, size;
 
     if (mpi_rank == 0) {
+        // process program arguments
+        int opt;
+        do {
+            switch ((opt = getopt(argc, argv, "f:h"))) {
+                case 'f':
+                    file_path = optarg;
+                    if (file_path == NULL) {
+                        fprintf(stderr, "Invalid file name\n");
+                        printUsage(cmd_name);
+                        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+                    }
+                    break;
+                case 'h':
+                    printUsage(cmd_name);
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+                case '?':
+                    fprintf(stderr, "Invalid option -%c\n", optopt);
+                    printUsage(cmd_name);
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+                case -1:
+                    break;
+            }
+        } while (opt != -1);
+        if (file_path == NULL) {
+            fprintf(stderr, "Input file not specified\n");
+            printUsage(cmd_name);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+
         // print program arguments
         fprintf(stdout, "Input file: %s\n", file_path);
         fprintf(stdout, "Processes: %d\n", mpi_size);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
         fclose(file);
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    // broadcast the size of the array
     MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     if (mpi_rank == 0) {
@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
         int *sub_arr = (int *)malloc(count * sizeof(int));
         if (sub_arr == NULL) {
             fprintf(stderr, "[PROC-%d] Could not allocate memory for the sub-array\n", mpi_rank);
+            if (mpi_rank == 0) free(arr);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
@@ -259,15 +260,14 @@ int main(int argc, char *argv[]) {
             sub_arr = (int *)realloc(sub_arr, count * sizeof(int));
             if (sub_arr == NULL) {
                 fprintf(stderr, "[PROC-%d] Could not reallocate memory for the sub-array\n", mpi_rank);
+                free(sub_arr);
+                if (mpi_rank == 0) free(arr);
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
 
             // associate processes involved in the merge tasks to the communicator
-            if (mpi_rank < n_merge_tasks) {
-                MPI_Comm_split(MPI_COMM_WORLD, 0, mpi_rank, &merge_comm);
-            } else {
-                MPI_Comm_split(MPI_COMM_WORLD, MPI_UNDEFINED, mpi_rank, &merge_comm);
-            }
+            int color = (mpi_rank < n_merge_tasks) ? 0 : MPI_UNDEFINED;
+            MPI_Comm_split(MPI_COMM_WORLD, color, mpi_rank, &merge_comm);
 
             if (merge_comm != MPI_COMM_NULL) {
                 fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
                 // gather the merged parts
                 MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, merge_comm);
 
+                // free the communicator
                 MPI_Comm_free(&merge_comm);
             }
         }
@@ -300,6 +301,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < size - 1; i++) {
             if (arr[i] < arr[i + 1]) {
                 fprintf(stderr, "Error in position %d between element %d and %d\n", i, arr[i], arr[i + 1]);
+                free(arr);
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
         }
