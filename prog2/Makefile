@@ -2,8 +2,8 @@
 
 compile:
 	@echo "Compiling..."
-	mpicc -Wall -O3 -o prog2 mpiBitonic.c
+	mpicc -Wall -O3 -o prog2 mpiBitonic.c sortUtils.c
 
 test: compile
 	@echo "Testing..."
-	mpiexec -n 4 ./prog2 -f data/datSeq256K.bin
+	mpiexec -n 8 ./prog2 -f data/datSeq16M.bin

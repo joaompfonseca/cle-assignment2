@@ -3,7 +3,7 @@
  *
  *  \brief Assignment 2.2: mpi-based bitonic sort.
  *
- *  Constants used in the program.
+ *  This file contains some constants used in the program.
  *
  *  \author João Fonseca - March 2024
  *  \author Rafael Gonçalves - March 2024

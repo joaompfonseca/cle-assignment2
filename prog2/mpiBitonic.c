@@ -18,6 +18,7 @@
 #include <time.h>
 
 #include "const.h"
+#include "sortUtils.h"
 
 /**
  *  \brief Prints the usage of the program.
@@ -55,60 +56,18 @@ static double get_delta_time(void) {
 }
 
 /**
- *  \brief Merges two halves of an integer array in the desired order.
- *
- *  \param arr array to be merged
- *  \param low_index index of the first element of the array
- *  \param count number of elements in the array
- *  \param direction 0 for descending order, 1 for ascending order
- */
-void bitonic_merge(int *arr, int low_index, int count, int direction) {  // NOLINT(*-no-recursion)
-    if (count <= 1) return;
-    int half = count / 2;
-    // move the numbers to the correct half
-    for (int i = low_index; i < low_index + half; i++) {
-        if (direction == (arr[i] > arr[i + half])) {
-            int temp = arr[i];
-            arr[i] = arr[i + half];
-            arr[i + half] = temp;
-        }
-    }
-    // merge left half
-    bitonic_merge(arr, low_index, half, direction);
-    // merge right half
-    bitonic_merge(arr, low_index + half, half, direction);
-}
-
-/**
- *  \brief Sorts an integer array in the desired order.
- *
- *  \param arr array to be sorted
- *  \param low_index index of the first element of the array
- *  \param count number of elements in the array
- *  \param direction 0 for descending order, 1 for ascending order
- */
-void bitonic_sort(int *arr, int low_index, int count, int direction) {  // NOLINT(*-no-recursion)
-    if (count <= 1) return;
-    int half = count / 2;
-    // sort left half in ascending order
-    bitonic_sort(arr, low_index, half, ASCENDING);
-    // sort right half in descending order
-    bitonic_sort(arr, low_index + half, half, DESCENDING);
-    // merge the two halves
-    bitonic_merge(arr, low_index, count, direction);
-}
-
-/**
  *  \brief Main function of the program.
  *
  *  Lifecycle:
  *  - initialize mpi variables
  *  - rank 0: process program arguments
  *  - rank 0: read the array from the file
+ *  - inilialize mpi group
  *  - rank 0: broadcast the size of the array
  *  - rank 0: start time
  *  - mpi scatter/gather to bitonic sort each part of the array
- *  - create mpi communicator for processes involved in the bitonic merge tasks
+ *  - group processes involved in merge tasks
+ *  - terminate processes not involved
  *  - mpi scatter/gather to bitonic merge each part of the array until it's sorted
  *  - rank 0: stop time
  *  - rank 0: check if the array is sorted
@@ -125,6 +84,11 @@ int main(int argc, char *argv[]) {
 
     // mpi arguments
     int mpi_rank, mpi_size;
+
+    // mpi comm and group
+    MPI_Comm curr_comm = MPI_COMM_WORLD, next_comm;
+    MPI_Group curr_group, next_group;
+    int *group_members = NULL;
 
     // initialize mpi
     MPI_Init(&argc, &argv);
@@ -210,8 +174,22 @@ int main(int argc, char *argv[]) {
         fclose(file);
     }
 
+    // intialize process group
+    group_members = (int *)malloc(mpi_size * sizeof(int));
+    if (group_members == NULL) {
+        fprintf(stderr, "[PROC-%d] Could not allocate memory for the process group\n", mpi_rank);
+        if (mpi_rank == 0) free(arr);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+    for (int i = 0; i < mpi_size; i++) {
+        group_members[i] = i;
+    }
+
+    // initialize mpi group and comm
+    MPI_Comm_group(curr_comm, &curr_group);
+
     // broadcast the size of the array
-    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&size, 1, MPI_INT, 0, curr_comm);
 
     if (mpi_rank == 0) {
         // START TIME
@@ -235,7 +213,7 @@ int main(int argc, char *argv[]) {
         fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
 
         // scatter the array into mpi_size parts
-        MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
 
         // direction of the sub-sort
         int low_index = mpi_rank * count;
@@ -245,13 +223,10 @@ int main(int argc, char *argv[]) {
         bitonic_sort(sub_arr, 0, count, sub_direction);
 
         // gather the sorted parts
-        MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, curr_comm);
 
         /* perform a bitonic merge of the sorted parts
            make each process bitonic merge one part */
-
-        // create a communicator for the merge tasks
-        MPI_Comm merge_comm;
 
         for (count *= 2; count <= size; count *= 2) {
             int n_merge_tasks = size / count;
@@ -265,29 +240,34 @@ int main(int argc, char *argv[]) {
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
 
-            // associate processes involved in the merge tasks to the communicator
-            int color = (mpi_rank < n_merge_tasks) ? 0 : MPI_UNDEFINED;
-            MPI_Comm_split(MPI_COMM_WORLD, color, mpi_rank, &merge_comm);
-
-            if (merge_comm != MPI_COMM_NULL) {
-                fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
-
-                // scatter the array into n_merge_tasks parts
-                MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, merge_comm);
-
-                // direction of the sub-merge
-                int low_index = mpi_rank * count;
-                int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
-
-                // make each worker process bitonic merge one part
-                bitonic_merge(sub_arr, 0, count, sub_direction);
-
-                // gather the merged parts
-                MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, merge_comm);
-
-                // free the communicator
-                MPI_Comm_free(&merge_comm);
+            // group processes involved in merge tasks
+            MPI_Group_incl(curr_group, n_merge_tasks, group_members, &next_group);
+            MPI_Comm_create(curr_comm, next_group, &next_comm);
+            curr_group = next_group;
+            curr_comm = next_comm;
+            
+            // terminate processes not involved
+            if (mpi_rank >= n_merge_tasks) {
+                break;
             }
+
+            // set communicator size
+            MPI_Comm_size(curr_comm, &n_merge_tasks);
+
+            fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
+
+            // scatter the array into n_merge_tasks parts
+            MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
+
+            // direction of the sub-merge
+            int low_index = mpi_rank * count;
+            int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+
+            // make each worker process bitonic merge one part
+            bitonic_merge(sub_arr, 0, count, sub_direction);
+
+            // gather the merged parts
+            MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, curr_comm);
         }
 
         free(sub_arr);
@@ -309,6 +289,8 @@ int main(int argc, char *argv[]) {
 
         free(arr);
     }
+
+    fprintf(stdout, "[PROC-%d] Finished\n", mpi_rank);
 
     MPI_Finalize();
 
