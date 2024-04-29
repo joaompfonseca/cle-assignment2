@@ -6,4 +6,4 @@ compile:
 
 test: compile
 	@echo "Testing..."
-	mpiexec -n 8 ./prog2 -f data/datSeq16M.bin
+	mpiexec -n 8 ./prog2 -f data/datSeq256K.bin

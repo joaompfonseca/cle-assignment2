@@ -135,8 +135,8 @@ int main(int argc, char *argv[]) {
         }
 
         // print program arguments
-        fprintf(stdout, "Input file: %s\n", file_path);
-        fprintf(stdout, "Processes: %d\n", mpi_size);
+        fprintf(stdout, "%-16s : %s\n", "Input file", file_path);
+        fprintf(stdout, "%-16s : %d\n", "Processes", mpi_size);
 
         // open the file
         FILE *file = fopen(file_path, "rb");
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
             fclose(file);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
-        fprintf(stdout, "Array size: %d\n", size);
+        fprintf(stdout, "%-16s : %d\n", "Array size", size);
         // allocate memory for the array
         arr = (int *)malloc(size * sizeof(int));
         if (arr == NULL) {
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
         /* divide the array into mpi_size parts
            make each process bitonic sort one part */
 
-        fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
+        // fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
 
         // scatter the array into mpi_size parts
         MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
@@ -254,7 +254,7 @@ int main(int argc, char *argv[]) {
             // set communicator size
             MPI_Comm_size(curr_comm, &n_merge_tasks);
 
-            fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
+            // fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
 
             // scatter the array into n_merge_tasks parts
             MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
 
     if (mpi_rank == 0) {
         // END TIME
-        fprintf(stdout, "[TIME] Time elapsed: %.9f seconds\n", get_delta_time());
+        fprintf(stdout, "%-16s : %.9f seconds\n", "Time elapsed", get_delta_time());
 
         // check if the array is sorted
         for (int i = 0; i < size - 1; i++) {
@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
         free(arr);
     }
 
-    fprintf(stdout, "[PROC-%d] Finished\n", mpi_rank);
+    // fprintf(stdout, "[PROC-%d] Finished\n", mpi_rank);
 
     MPI_Finalize();
 
