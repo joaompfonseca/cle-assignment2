@@ -216,8 +216,7 @@ int main(int argc, char *argv[]) {
         MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
 
         // direction of the sub-sort
-        int low_index = mpi_rank * count;
-        int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+        int sub_direction = (mpi_rank % 2 == 0) == direction;
 
         // make each process bitonic sort one part
         bitonic_sort(sub_arr, 0, count, sub_direction);
@@ -260,8 +259,7 @@ int main(int argc, char *argv[]) {
             MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
 
             // direction of the sub-merge
-            int low_index = mpi_rank * count;
-            int sub_direction = (((low_index / count) % 2 == 0) != 0) == direction;
+            int sub_direction = (mpi_rank % 2 == 0) == direction;
 
             // make each worker process bitonic merge one part
             bitonic_merge(sub_arr, 0, count, sub_direction);
