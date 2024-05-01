@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
             MPI_Comm_create(curr_comm, next_group, &next_comm);
             curr_group = next_group;
             curr_comm = next_comm;
-            
+
             // terminate processes not involved
             if (mpi_rank >= n_merge_tasks) {
                 break;
@@ -277,7 +277,7 @@ int main(int argc, char *argv[]) {
 
         // check if the array is sorted
         for (int i = 0; i < size - 1; i++) {
-            if (arr[i] < arr[i + 1]) {
+            if ((arr[i] < arr[i + 1] && direction == DESCENDING) || (arr[i] > arr[i + 1] && direction == ASCENDING)) {
                 fprintf(stderr, "Error in position %d between element %d and %d\n", i, arr[i], arr[i + 1]);
                 free(arr);
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
