@@ -210,8 +210,6 @@ int main(int argc, char *argv[]) {
         /* divide the array into mpi_size parts
            make each process bitonic sort one part */
 
-        // fprintf(stdout, "[PROC-%d] Bitonic sort of %d parts of size %d\n", mpi_rank, mpi_size, count);
-
         // scatter the array into mpi_size parts
         MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
 
@@ -253,19 +251,26 @@ int main(int argc, char *argv[]) {
             // set communicator size
             MPI_Comm_size(curr_comm, &n_merge_tasks);
 
-            // fprintf(stdout, "[PROC-%d] Bitonic merge of %d parts of size %d\n", mpi_rank, n_merge_tasks, count);
+            if (n_merge_tasks > 1) {
+                // scatter the array into n_merge_tasks parts
+                MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
 
-            // scatter the array into n_merge_tasks parts
-            MPI_Scatter(arr, count, MPI_INT, sub_arr, count, MPI_INT, 0, curr_comm);
+                // direction of the sub-merge
+                int sub_direction = (mpi_rank % 2 == 0) == direction;
 
-            // direction of the sub-merge
-            int sub_direction = (mpi_rank % 2 == 0) == direction;
+                // make each worker process bitonic merge one part
+                bitonic_merge(sub_arr, 0, count, sub_direction);
 
-            // make each worker process bitonic merge one part
-            bitonic_merge(sub_arr, 0, count, sub_direction);
+                // gather the merged parts
+                MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, curr_comm);
+            }
+            else {
+                // direction of the sub-merge
+                int sub_direction = (mpi_rank % 2 == 0) == direction;
 
-            // gather the merged parts
-            MPI_Gather(sub_arr, count, MPI_INT, arr, count, MPI_INT, 0, curr_comm);
+                // make each worker process bitonic merge one part
+                bitonic_merge(arr, 0, count, sub_direction);
+            }
         }
 
         free(sub_arr);
@@ -287,8 +292,6 @@ int main(int argc, char *argv[]) {
 
         free(arr);
     }
-
-    // fprintf(stdout, "[PROC-%d] Finished\n", mpi_rank);
 
     MPI_Finalize();
 
