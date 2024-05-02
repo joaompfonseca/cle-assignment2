@@ -14,11 +14,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef WORD_UTILS_H
+#define WORD_UTILS_H
+
 // For Portuguese words, we don't have to consider some special characters
 #define START_CHARS "0123456789abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ_"
 #define SINGLE_BYTE_DELIMITERS " \t\n\r-\"[]().,:;?!–"
 #define MAX_CHAR_LENGTH 5 // max number of bytes of a UTF-8 character + null terminator
 #define CONSONANTS "bcdfghjklmnpqrstvwxyz"
+#define MAX_CHUNK_SIZE 4096
+
 
 /** \brief Array that stores the meaning of each single-byte character (1. start of the word, 2. single-byte delimiter) */
 extern int charMeaning[256];
@@ -94,3 +99,13 @@ extern char extractCharFromChunk(char *chunk, char *UTF8Char, int *ptr);
  * \param detMultCons (Pointer) Indicates if the current word has equal consonants.
  */
 extern void processChar(char *currentChar, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons);
+
+typedef struct {
+    char *chunk;
+    int chunkSize;
+    bool finished;
+} chunk_data;
+
+extern void retrieveData(FILE *fp, chunk_data *chunkData);
+
+#endif

@@ -111,10 +111,3 @@ void saveResults(int nWords, int nWordsWMultCons, int fileIndex) {
  *
  *  \param _nFiles number of files
  */
-void printResults(int _nFiles) {
-    for (int i = 0; i < _nFiles; i++) {
-        printf("File name: %s\n", finalFileData[i].fileName);
-        printf("Total number of words: %d\n", finalFileData[i].nWords);
-        printf("Total number of words with at least two instances of the same consonant: %d\n\n", finalFileData[i].nWordsWMultCons);
-    }
-}
