@@ -1,18 +1,18 @@
 Numbers: 32 - Processes: 1
-Average: 9.504e-05
-Standard Deviation: 2.438e-04
+Average: 1.952e-05
+Standard Deviation: 8.828e-06
 
 Numbers: 32 - Processes: 2
-Average: 4.938e-05
-Standard Deviation: 2.234e-05
+Average: 4.515e-05
+Standard Deviation: 4.987e-06
 
 Numbers: 32 - Processes: 4
-Average: 1.757e-04
-Standard Deviation: 6.126e-05
+Average: 1.649e-04
+Standard Deviation: 7.589e-05
 
 Numbers: 32 - Processes: 8
-Average: 3.673e-03
-Standard Deviation: 3.148e-03
+Average: 3.474e-03
+Standard Deviation: 4.175e-03
 
 Numbers: 256K - Processes: 1
 Average: 7.248e-02
