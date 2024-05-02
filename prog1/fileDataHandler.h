@@ -26,13 +26,8 @@ typedef struct {
 
 /** \brief Structure that represents the monitor to control the access to the shared data */
 typedef struct {
-    int fileIndex;
-    bool finished;
-    int nWords;
-    int chunkSize;
-    int nWordsWMultCons;
-    bool inWord;
     char *chunk;
+    int chunkSize;
 } chunk_data;
 
 /** \brief Allocates and initializes both the shared data and the monitor.
@@ -47,7 +42,7 @@ extern final_file_results* initFinalResults(int _nFiles, char **fileNames);
  *  \param workerId worker id
  *  \param chunkData pointer to the chunk data structure
  */
-extern void retrieveData(chunk_data *chunkData);
+extern void retrieveData(FILE *fp, chunk_data *chunkData);
 
 /** \brief Saves the partial results of a chunk in the shared data, guaranteeing mutual exclusion.
  *

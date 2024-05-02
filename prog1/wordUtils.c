@@ -248,3 +248,41 @@ void processChar(char *UTF8Char, bool *inWord, int *nWords, int *nWordsWMultCons
         }
     }
 }
+
+
+void retrieveData(FILE *fp, chunk_data *chunkData) {
+    // read chunk
+    chunkData->chunkSize = fread(chunkData->chunk, 1, MAX_CHUNK_SIZE, fp);
+    chunkData->finished = false;
+
+    // if chunk size is less than MAX_CHUNK_SIZE, then it is the last chunk
+    if (chunkData->chunkSize < MAX_CHUNK_SIZE) {
+        chunkData->finished = true;
+    }
+    else {
+        // read until a word is complete
+        char *UTF8Char = (char *) malloc(MAX_CHAR_LENGTH * sizeof(char));
+        uint8_t charSize;
+        uint8_t removePos = 0;
+
+        while (extractCharFromFile(fp, UTF8Char, &charSize, &removePos) != EOF) {
+            if (isCharNotAllowedInWordUtf8(UTF8Char)) {
+                chunkData->chunkSize -= removePos;
+                chunkData->chunk[chunkData->chunkSize] = '\0';
+                break;
+            }
+
+            // realloc chunk if necessary
+            if (chunkData->chunkSize + charSize > MAX_CHUNK_SIZE) {
+                chunkData->chunk = (char *)realloc(chunkData->chunk, (chunkData->chunkSize + charSize + 1) * sizeof(char));
+            }
+
+            // add char to chunk
+            for (int i = 0; i < charSize; i++) {
+                chunkData->chunk[chunkData->chunkSize] = UTF8Char[i];
+                chunkData->chunkSize++;
+            }
+        }
+    }
+    chunkData->chunk[chunkData->chunkSize] = '\0';
+}
