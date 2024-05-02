@@ -1,0 +1,64 @@
+Numbers: 32 - Processes: 1
+Average: 9.504e-05
+Standard Deviation: 2.438e-04
+
+Numbers: 32 - Processes: 2
+Average: 4.938e-05
+Standard Deviation: 2.234e-05
+
+Numbers: 32 - Processes: 4
+Average: 1.757e-04
+Standard Deviation: 6.126e-05
+
+Numbers: 32 - Processes: 8
+Average: 3.673e-03
+Standard Deviation: 3.148e-03
+
+Numbers: 256K - Processes: 1
+Average: 7.248e-02
+Standard Deviation: 5.671e-03
+
+Numbers: 256K - Processes: 2
+Average: 4.345e-02
+Standard Deviation: 5.576e-03
+
+Numbers: 256K - Processes: 4
+Average: 3.214e-02
+Standard Deviation: 3.111e-03
+
+Numbers: 256K - Processes: 8
+Average: 3.167e-02
+Standard Deviation: 6.385e-03
+
+Numbers: 1M - Processes: 1
+Average: 3.217e-01
+Standard Deviation: 1.266e-02
+
+Numbers: 1M - Processes: 2
+Average: 1.872e-01
+Standard Deviation: 1.851e-02
+
+Numbers: 1M - Processes: 4
+Average: 1.377e-01
+Standard Deviation: 9.915e-03
+
+Numbers: 1M - Processes: 8
+Average: 1.143e-01
+Standard Deviation: 1.065e-02
+
+Numbers: 16M - Processes: 1
+Average: 6.479e+00
+Standard Deviation: 1.217e-01
+
+Numbers: 16M - Processes: 2
+Average: 3.810e+00
+Standard Deviation: 1.788e-01
+
+Numbers: 16M - Processes: 4
+Average: 3.201e+00
+Standard Deviation: 6.986e-02
+
+Numbers: 16M - Processes: 8
+Average: 2.572e+00
+Standard Deviation: 1.736e-01
+
