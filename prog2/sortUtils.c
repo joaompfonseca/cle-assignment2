@@ -5,8 +5,8 @@
  *
  *  This file contains the implementation of the bitonic sort and merge routines.
  *
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 
 #include "const.h"

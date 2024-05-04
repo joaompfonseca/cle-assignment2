@@ -1,102 +1,72 @@
-Number of files: 5
 Number of workers: 1
-
-File name: data/text0.txt
-Total number of words: 17
-Total number of words with at least two instances of the same consonant: 2
-
-File name: data/text1.txt
-Total number of words: 1184
-Total number of words with at least two instances of the same consonant: 207
-
-File name: data/text2.txt
-Total number of words: 11027
-Total number of words with at least two instances of the same consonant: 1999
-
-File name: data/text3.txt
-Total number of words: 3369
-Total number of words with at least two instances of the same consonant: 508
-
-File name: data/text4.txt
-Total number of words: 9914
-Total number of words with at least two instances of the same consonant: 1322
-
-Elapsed time: 0.005036
+0.002302
+0.002345
+0.002326
+0.002366
+0.002256
+0.002332
+0.002300
+0.002493
+0.002342
+0.002459
+0.002402
+0.002481
+0.002300
+0.003480
+0.002310
 
 
-Number of files: 5
 Number of workers: 2
-
-File name: data/text0.txt
-Total number of words: 17
-Total number of words with at least two instances of the same consonant: 2
-
-File name: data/text1.txt
-Total number of words: 1184
-Total number of words with at least two instances of the same consonant: 207
-
-File name: data/text2.txt
-Total number of words: 11027
-Total number of words with at least two instances of the same consonant: 1999
-
-File name: data/text3.txt
-Total number of words: 3369
-Total number of words with at least two instances of the same consonant: 508
-
-File name: data/text4.txt
-Total number of words: 9914
-Total number of words with at least two instances of the same consonant: 1322
-
-Elapsed time: 0.002341
+0.001507
+0.001517
+0.001506
+0.001539
+0.001500
+0.001558
+0.001520
+0.001523
+0.001505
+0.001537
+0.001530
+0.001531
+0.001581
+0.001528
+0.001558
 
 
-Number of files: 5
 Number of workers: 4
-
-File name: data/text0.txt
-Total number of words: 17
-Total number of words with at least two instances of the same consonant: 2
-
-File name: data/text1.txt
-Total number of words: 1184
-Total number of words with at least two instances of the same consonant: 207
-
-File name: data/text2.txt
-Total number of words: 11027
-Total number of words with at least two instances of the same consonant: 1999
-
-File name: data/text3.txt
-Total number of words: 3369
-Total number of words with at least two instances of the same consonant: 508
-
-File name: data/text4.txt
-Total number of words: 9914
-Total number of words with at least two instances of the same consonant: 1322
-
-Elapsed time: 0.001141
+0.001420
+0.001201
+0.001589
+0.001570
+0.001210
+0.001093
+0.001118
+0.001059
+0.001167
+0.001208
+0.001140
+0.001321
+0.001241
+0.001438
+0.001192
 
 
-Number of files: 5
 Number of workers: 8
+0.001169
+0.001021
+0.001035
+0.001158
+0.001145
+0.001197
+0.001194
+0.001162
+0.001195
+0.001255
+0.001418
+0.001182
+0.001131
+0.001224
+0.001021
 
-File name: data/text0.txt
-Total number of words: 17
-Total number of words with at least two instances of the same consonant: 2
 
-File name: data/text1.txt
-Total number of words: 1184
-Total number of words with at least two instances of the same consonant: 207
-
-File name: data/text2.txt
-Total number of words: 11027
-Total number of words with at least two instances of the same consonant: 1999
-
-File name: data/text3.txt
-Total number of words: 3369
-Total number of words with at least two instances of the same consonant: 508
-
-File name: data/text4.txt
-Total number of words: 9914
-Total number of words with at least two instances of the same consonant: 1322
-
-Elapsed time: 0.001084

@@ -5,8 +5,8 @@
  *
  *  This file contains some constants used in the program.
  *
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 
 #ifndef CONST_H

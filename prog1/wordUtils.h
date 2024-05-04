@@ -1,12 +1,12 @@
 /**
  *  \file wordUtils.h (inteface file)
  *
- *  \brief Assignment 1.2: multithreaded bitonic sort.
+ *  \brief Assignment 2.1: mpi-based equal consonants.
  *
  *  This file defines several functions (and the associated macros) to process UTF-8 characters from files or chunks of text.
  * 
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 #include <string.h>
 #include <stdlib.h>
@@ -24,6 +24,12 @@
 #define CONSONANTS "bcdfghjklmnpqrstvwxyz"
 #define MAX_CHUNK_SIZE 4096
 
+/** \brief Structure that stores the content and size of a chunk of text, and whether it is the last one */
+typedef struct {
+    char *chunk;
+    int chunkSize;
+    bool finished;
+} chunk_data;
 
 /** \brief Array that stores the meaning of each single-byte character (1. start of the word, 2. single-byte delimiter) */
 extern int charMeaning[256];
@@ -100,12 +106,11 @@ extern char extractCharFromChunk(char *chunk, char *UTF8Char, int *ptr);
  */
 extern void processChar(char *currentChar, bool *inWord, int *nWords, int *nWordsWMultCons, int consOcc[], bool *detMultCons);
 
-typedef struct {
-    char *chunk;
-    int chunkSize;
-    bool finished;
-} chunk_data;
-
+/** \brief Retrieves a chunk of data from the current file.
+ *
+ *  \param fp file pointer
+ *  \param chunkData pointer to the chunk data structure
+ */
 extern void retrieveData(FILE *fp, chunk_data *chunkData);
 
 #endif

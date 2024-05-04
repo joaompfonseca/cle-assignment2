@@ -5,8 +5,8 @@
  *
  *  This file contains the interface of the bitonic sort and merge routines.
  *
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 
 #ifndef SORT_UTILS_H

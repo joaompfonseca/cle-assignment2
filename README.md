@@ -10,7 +10,7 @@ The second problem consisted of developing a sorting algorithm to sort an array 
 
 **Course:** Large Scale Computing (2023/2024).
 
-## 1. Multithreaded equal consonants
+## 1. Equal consonants with MPI
 
 ### Compile and execute
 
@@ -30,7 +30,7 @@ The second problem consisted of developing a sorting algorithm to sort an array 
 
 `mpiexec -n 4 ./prog1 file1.txt file2.txt`
 
-## 2. Multithreaded bitonic sort
+## 2. Bitonic sort with MPI
 
 ### Compile and execute
 

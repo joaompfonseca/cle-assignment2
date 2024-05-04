@@ -5,8 +5,8 @@
  *
  *  This file contains the definition of the mpi-based bitonic sort algorithm.
  *
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 
 #include <assert.h>

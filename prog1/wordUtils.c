@@ -1,12 +1,12 @@
 /**
  *  \file wordUtils.c (implementation file)
  *
- *  \brief Assignment 1.2: multithreaded bitonic sort.
+ *  \brief Assignment 2.1: mpi-based equal consonants.
  *
  *  This file contains the implementation of several functions to process UTF-8 characters from files or chunks of text.
  * 
- *  \author João Fonseca - March 2024
- *  \author Rafael Gonçalves - March 2024
+ *  \author João Fonseca
+ *  \author Rafael Gonçalves
  */
 #include "wordUtils.h"
 
@@ -249,7 +249,11 @@ void processChar(char *UTF8Char, bool *inWord, int *nWords, int *nWordsWMultCons
     }
 }
 
-
+/** \brief Retrieves a chunk of data from the current file.
+ *
+ *  \param fp file pointer
+ *  \param chunkData pointer to the chunk data structure
+ */
 void retrieveData(FILE *fp, chunk_data *chunkData) {
     // read chunk
     chunkData->chunkSize = fread(chunkData->chunk, 1, MAX_CHUNK_SIZE, fp);
